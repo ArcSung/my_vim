@@ -1,0 +1,875 @@
+*netbeans.txt*  For Vim version 7.4.  最近更新: 2013年1月
+
+
+		  VIM 參考手冊    by Gordon Prieur et al.
+				譯者: Willis
+				http://vimcdoc.sf.net
+
+
+			*socket-interface* *netbeans* *netbeans-support*
+
+Vim NetBeans 協議: 把 Vim 整合到 IDE 中的套接字介面。
+
+1.  簡介					|netbeans-intro|
+2.  整合特性					|netbeans-integration|
+3.  支援 NetBeans 的 Vim 配置			|netbeans-configure|
+4.  錯誤訊息					|netbeans-messages|
+5.  從 NetBeans 模式裡運行 Vim			|netbeans-run|
+6.  NetBeans 協議				|netbeans-protocol|
+7.  NetBeans 命令				|netbeans-commands|
+8.  已知問題					|netbeans-problems|
+9.  偵錯 NetBeans 協議				|netbeans-debugging|
+10. NetBeans 外部編輯器
+    10.1. 下載 NetBeans				|netbeans-download|
+    10.2. NetBeans 鍵盤對映			|netbeans-keybindings|
+    10.3. 為 Vim 準備 NetBeans			|netbeans-preparation|
+    10.4. 取得外部編輯器模組			|obtaining-exted|
+    10.5. 設定 NetBeans 以運行 Vim		|netbeans-setup|
+
+{Vi 沒有這些功能}
+{僅當編譯時加入 |+netbeans_intg| 特性纔有效}
+
+==============================================================================
+1. 簡介							*netbeans-intro*
+
+NetBeans 介面原本是為了整合 Vim 到 NetBeans Java IDE 裡而使用外部編輯器插件開
+發的。現在已經沒有支援 NetBeans 最近版本的該 NetBeans 插件，但該協議的開發方式
+使得任何 IDE 都可以用它來整合 Vim。
+
+Vim 的 NetBeans 協議是一個建立在傳統的 TCP 套接字介面之上的基於文字的通訊協
+議。它不依賴於 Java 或 NetBeans。任何語言或環境只要提供了套接字介面，就可以使
+用該協議控制 Vim。該協議已經有 C、C++、Python 和 Java 的實現。今天我們之所以還
+保持 NetBeans 這個名字，只是基於歷史上的淵源。
+
+目前使用 Vim 的 NetBeans 協議的項目有:
+- VimIntegration，有關於若干 Vim 整合項目的描述:
+	http://www.freehackers.org/VimIntegration
+- Agide，Python 編寫的用於 AAP 項目的 IDE:
+	http://www.a-a-p.org
+- Clewn，C 編寫的 Vim 上的 gdb 整合:
+	http://clewn.sourceforge.net/
+- Pyclewn，Python 編寫的 Vim 的 gdb 整合:
+	http://pyclewn.sourceforge.net/
+- VimPlugin，Eclipse 上的 Vim 整合:
+	http://vimplugin.sourceforge.net/wiki/pmwiki.php
+- PIDA，Python 編寫的整合 Vim 的 IDE:
+	http://pida.co.uk/
+- VimWrapper，方便把 Vim 整合到 IDE 的庫:
+	http://www.freehackers.org/VimWrapper
+
+查閱具體的項目頁面來瞭解如何在這些項目中使用 Vim。
+
+本幫助頁面的其餘部分使用術語 "Vim 控制器" 來描述通過 NetBeans 套接字介面來控制
+Vim 的程式。
+
+
+關於 NetBeans IDE ~
+
+NetBeans 是一個開源的整合開發環境，由 Sun Microsystems, Inc 和 netbeans.org 開
+發團體共同開發。剛開始只是一個 Java IDE，在最近的發行版本中， NetBeans 已經有
+C、C++、和 Fortran 的支援。
+
+要知道更多的資訊，訪問 NetBeans 的主網站 http://www.netbeans.org。
+不幸地，外部編輯器現已宣布被廢棄了。見 http://externaleditor.netbeans.org。
+
+Sun Microsystems, Inc. 也以 Sun ONE Studio 的名字發行 NetBeans。訪問
+http://www.sun.com 可以瞭解更多關於 Sun ONE Studio 產品線的資訊。
+
+目前的 NetBeans 發行版本提供 Java 的完全支援和 C、C++ 以及 Fortran 的有限支
+持。目前的 Sun ONE Studio 發行版本提供 Java、C、C++ 和 Fortran 的完全支援。
+
+==============================================================================
+2. 整合特性						*netbeans-integration*
+
+Vim 的 NetBeans 套接字介面可以從 Vim 那裡得到資訊或者告訴 Vim 執行特定任務:
+- 得到緩衝區的資訊: 緩衝區名、游標位置、緩衝區內容，等等
+- 緩衝區被開啟或關閉時被告知
+- 緩衝區內容修改時被告知
+- 讀入或儲存檔案
+- 修改緩衝區內容
+- 安裝特別的鍵繫結
+- 擡起 (raise) 視窗，控制視窗的尺寸
+
+要發送鍵擊到 Vim 以執行 Vim 的功能，必須使用 |clientserver| 介面。
+
+
+==============================================================================
+3. 支援 NetBeans 的 Vim 配置				*netbeans-configure*
+
+要得到安裝 Vim 的更多幫助，請閱讀 Vim 使用者手冊的 |usr_90.txt|。
+
+
+在 Unix 上:
+-----------
+
+不帶參數的 configure 應該已經包含 NetBeans 介面，如果 configure 檢查你的系統支
+持所需的功能的話。
+
+如果你不想要 NetBeans 介面，你可以在 Makefile 裡去掉包含 "--disable-netbeans"
+的一行的註釋。
+
+目前，支援 Netbeans 介面的有控制檯運行的 Vim 和運行以下 GUI 的 Gvim: GTK、
+GNOME、Windows、Athena 和 Motif。
+
+如果需要 Motif 支援，使用者應該提供 XPM 庫。參見 |workshop-xpm| 瞭解如何得到最新
+版本的 XPM 的詳情。
+
+
+在 MS-Windows 上:
+-----------------
+
+Win32 的支援現在還處於實驗階段。
+
+要使用 Win32 上的 XPM 標號，(例如使用 NetBeans 時)，你需要自己編譯 XPM，或者使
+用預編譯的庫: http://iamphet.nm.ru/misc/ (MS Visual C++ 版本) 或
+http://gnuwin32.sourceforge.net (MinGW 版本)。
+
+允許偵錯:
+---------
+
+要允許偵錯 Vim 和 NetBeans 協議，需要定義 "NBDEBUG" 宏。在相應平臺的 Makefile
+裡查找 "NBDEBUG" 就可以知道需要去掉哪些行的註釋。基本上就是給編譯的命令加上
+"-DNBDEBUG"。另見 |netbeans-debugging|
+
+==============================================================================
+4. 錯誤訊息						*netbeans-messages*
+
+以下這些錯誤訊息是 NetBeans 套接字協議特有的:
+
+							*E463*
+Region is guarded, cannot modify
+		Vim 控制器定義了文字的保護區域，你不能編輯這個區域。
+		如果需要，設定當前緩衝區。
+
+							*E532*
+The defineAnnoType highlighting color name is too long
+		defineAnnoType 命令的 "fg" 或 "bg" 顏色參數最大長度是 32 個字
+		符。
+		2.5 版本新出現。
+
+							*E656*
+Writes of unmodified buffers forbidden
+		不能寫入 Vim 控制器開啟的未修改的緩衝區。
+
+							*E657*
+Partial writes disallowed
+		不允許部分寫入 Vim 控制器開啟的緩衝區。
+
+							*E658*
+Connection lost for this buffer
+		Vim 控制器不清楚這個檔案的目前狀態。與其冒著破壞檔案的風險，
+		NetBeans 關閉了這個檔案的連線。Vim 自己要負責修改和儲存檔案的
+		改變，而 Vim 控制器將不會知道這些改變。
+
+							*E744*
+Read-only file
+		Vim 通常允許修改只讀檔案，只有在寫檔案的時候堅持執行只讀規則。
+		不過，NetBeans 不允許你修改只讀的檔案，如果 Vim 這麼做，會引起
+		混淆。為此，Vim 不允許執行 NetBeans 模式時修改檔案。
+
+==============================================================================
+5. 從 NetBeans 模式裡運行 Vim				*netbeans-run*
+
+有兩種方式可以啟動 Vim 的 NetBeans 模式:
+
+	+ IDE 可用 |-nb| 命令列參數啟動 Vim
+	+ 在 Vim 內部，可用 |:nbstart| 命令啟動 NetBeans
+
+							*netbeans-parameters*
+有三種形式可以用來設定 NetBeans 連線參數。
+在命令列上啟動時，|-nb| 命令列參數可以是:
+
+	-nb={fname}				從檔案讀取
+	-nb:{hostname}:{addr}:{password}	直接
+	-nb					從檔案或者環境變數裡讀取
+
+在 Vim 內部啟動時，|:nbstart| 可選參數可以是:
+
+	={fname}				從檔案讀取
+	:{hostname}:{addr}:{password}		直接
+	<無參數>				從檔案或者環境變數裡讀取
+
+							*E660* *E668*
+在命令列上啟動時，為了安全的原因，最好的方法是把資訊寫到只有使用者能讀得檔案裡。
+檔名字可以通過 "-nb={fname}" 的參數傳遞。或者，在不帶的參數的 "-nb" 形式裡，
+由環境變數 "__NETBEANS_CONINFO" 指定。檔案裡必須包含以下三行內容，順序隨意:
+
+	host={hostname}
+	port={addr}
+	auth={password}
+
+其他的行被忽略。Vim 控制器須自己負責在不用的時候刪除這個檔案。
+
+{hostname} 指定 Vim 控制器運行的機器名。如果不提供，則取環境變數
+"__NETBEANS_HOST" 的值，如果還沒有，預設值是 "localhost"。
+
+{addr} 指定 NetBeans 協議所用的埠號。如果不提供，則取環境變數
+"__NETBEANS_SOCKET" 的值，如果還沒有，預設值是 3219。
+
+{password} 指定連線到 NetBeans 所用的密碼。如果不提供，則取環境變數
+"__NETBEANS_VIM_PASSWORD" 的值，如果還沒有，預設值是 "changeme"。
+
+啟動時，Vim 會建立套接字連線 (客戶端) 到指定的終端和埠。密碼會在連線建立後使
+用 AUTH 事件發送。
+
+
+==============================================================================
+6. NetBeans 協議					*netbeans-protocol*
+
+Vim 控制器和 Vim 的通訊使用簡單文字訊息。該協議原先是為 NetBeans 的外部編輯器
+所設計的。後來它被擴展，使得 Agide (A-A-P 的 GUI IDE，見 http://www.a-a-p.org)
+也能使用，然後又擴展到其它 IDE。該擴展被標為 "2.1 版本"。
+
+該協議的 2.2 版本有若干小的改動，這些改動應該隻影響 NetBeans 使用者 (而不是
+Agide 使用者)。不過，一個修正的漏洞可能會引起混淆: netbeans_saved() 函數以前發送
+一個 "save" 協議命令。在 2.1 版本和以前，它被不正確地解讀為寫操作已發生的通
+知。實際上，它告訴 NetBeans 儲存檔案，所以多個寫操作可能已經發生了。這個錯誤引
+起了若干問題，而 2.2 已修正了這個錯誤。為了減少這個混淆再次發生的可能性，
+netbeans_saved() 已經被改名為 netbeans_save_buffer()。
+
+我們現在已經使用 2.5 版本。2.4 和 2.5 版本間的差異可以在下面搜索 "2.5"。
+
+目前，訊息通過套接字傳送。因為訊息是簡單的 UTF-8 文字，該協議也許可以用其它通
+信機制完成。
+
+在 Vim 空閒等待使用者輸入時處理 Netbeans 訊息。Vim 運行在非互動模式時，如執行
+Vim 指令碼的自動測試中，呼叫空閒迴圈的次數可能過少。此時，可以呼叫 |:sleep| 命
+令。|:sleep| 命令會啟動 Netbeans 訊息處理。
+
+6.1 訊息類型			|nb-messages|
+6.2 術語			|nb-terms|
+6.3 命令			|nb-commands|
+6.4 函數和應答			|nb-functions|
+6.5 事件			|nb-events|
+6.6 特殊訊息			|nb-special|
+6.7 協議錯誤資訊		|nb-protocol_errors|
+
+
+6.1 訊息類型						*nb-messages*
+
+有四類訊息:
+
+類型		方向		註釋~
+命令		IDE -> 編輯器	不需要應答
+函數		IDE -> 編輯器	編輯器必須應答
+應答		編輯器 -> IDE	只用於函數的應答
+事件		編輯器 -> IDE	不需要應答
+
+每條訊息是換行符終止的一行文字。參數以單個空格分隔。每個訊息的第一項由訊息的類
+型決定:
+
+類型		第一項			示例 ~
+命令		bufID:name!seqno	11:showBalloon!123 "text"
+函數		bufID:name/seqno	11:getLength/123
+應答		seqno			123 5000
+事件		bufID:name=seqno	11:keyCommand=123 "S-F2"
+
+
+6.2 術語						*nb-terms*
+
+bufID		緩衝區號。每條訊息可以指定一個特定的緩衝區，也可以不指定任何緩
+		衝區 (泛指)。泛指的訊息使用為零的 bufID。注意: 緩衝區號是 IDE
+		分配的。這不是 Vim 的緩衝區號。bufID 應該是從一開始順序遞增的
+		數字。
+
+seqno		IDE 用序列號標示命令和函數。應答需要指明相關聯的函數的序列號。
+		事件可以使用為零的序列號 (也可以用最近一次收到的命令和函數的序
+		列號)。
+
+string		雙引號括起的參數。文字使用 UTF-8 編碼。這也意味著 ASCII 字元可
+		以原封不動的使用。一些特殊字元用反斜槓的形式表示:
+			\"	雙引號
+			\n	換行
+			\r	回車
+			\t	製表 (可選，也可以直接表示)
+			\\	反斜槓
+		NUL 位元組是不允許的！
+
+boolean		可取兩個可能值的參數:
+			T	真
+			F	假
+
+number		十進位制的參數。
+
+color		參數，或為十進位制數字，或為 "none" (沒有引號)，或為在
+		|highlight-ctermfg| 和 |gui-colors| 中定義的色彩名 (沒有引
+		號)，
+		2.5 版本新出現。
+
+offset		數值參數，表示緩衝區的一個位元組位置 (偏移量)。第一個位元組的偏移
+		量為 0。行尾的位元組計數決定於在檔案裡如何表示 (CR/LF 是兩個字
+		節)。注意一個多位元組的字元的位元組計數可能多於一。
+
+lnum/col	參數，表示行號和列號。行號從一開始，列號以位元組位置表示，從零開
+		始。注意一個多位元組的字元可能跨越多列。
+
+pathname	字元串參數: 帶完整路徑的檔名。
+
+
+6.3 命令						*nb-commands*
+
+actionMenuItem	沒有實現。
+
+actionSensitivity
+		沒有實現。
+
+addAnno serNum typeNum off len
+		在緩衝區里加上評註 (annotation)。
+		參數:
+		   serNum	number	該評註的序列號，刪除該評註時可以用到
+		   typeNum	number	用 defineAnnoType 定義的該緩衝區的評
+					注類型序列號
+		   off		number	評註所加的位置
+		   len		number	沒有用到
+		在 2.1 版本中，"lnum/col" 可以用來代替 "off"。
+
+balloonResult text
+		沒有實現。
+
+close		關閉緩衝區。這會使得我們失去當前的緩衝區。使用時要小心！
+
+create		建立一個沒有名字的緩衝區。替換當前的緩衝區 (改變的時候，它是隱
+		藏的)。
+		這是 Vim 控制器開啟檔案時使用的第一個命令。命令序列應該是:
+			create
+			setCaretListener	(忽略)
+			setModified		(沒有影響)
+			setContentType		(忽略)
+			startDocumentListen
+			setTitle
+			setFullName
+
+defineAnnoType typeNum typeName tooltip glyphFile fg bg
+		定義該緩衝區的一種評註類型。
+		參數:
+		   typeNum	number	序列號 (這裡沒有用到)
+		   typeName	string	標識這個評註的名字
+		   tooltip	string	沒有用到
+		   glyphFile	string	圖示檔名
+		   fg		color	高亮行前景色
+		   bg		color	高亮行背景色
+		Vim 會定義評註所用的標號。
+		如果 color 為數值，解釋為 "#rrggbb"，即紅綠藍色彩值 (見
+		|gui-colors|)，高亮只在 GVim 有定義。
+		如果 color 為名字，該顏色在帶色彩的終端和 GVim 都有定義。
+		當 "fg" 和 "bg" 都是 "none" 的時候，不使用高亮行 (2.1 版本新出
+		現)。
+		當 "glyphFile" 為空時，不使用文字標號 (2.1 版本新出現)。
+		但 "glyphFile" 為一到兩個字元長時，使用文字標號 (2.1 版本新出
+		現)。
+		注意: 評註會按順序定義，而其序列號以後可以在 addAnno 裡用到。
+
+editFile pathname
+		設定緩衝區的名字為字元串參數 pathname，並編輯該參數指定的文
+		件。
+		這是通常 IDE 告訴編輯器編輯一個檔案的方法。
+
+		使用該命令，你必須設定 bufId 為非零以把該 bufId 賦給緩衝區。它
+		會觸發 bufId 為零的 fileOpened 事件，但緩衝區已經分配好了。
+
+		如果 IDE 要把檔案內容直接傳遞給編輯器，那麼應該用這些命令:
+			setFullName
+			insert
+			initDone
+		2.1 版本新出現。
+
+enableBalloonEval
+		沒有實現。
+
+endAtomic	結束一個原子操作。"startAtomic" 和 "endAtomic" 之間的所有操作
+		可以一次全部撤銷。不過，這還沒有實現。如果需要，重畫螢幕。
+
+guard off len
+		標識緩衝區的一片區域為保護區域。這意味著那裡不能被編輯。"off"
+		和 "len" 是兩個數值，它們界定保護文字的範圍。
+
+initDone	標識這個緩衝區可用。這也隱含地意味著它成為當前緩衝區。啟用
+		BufReadPost 自動事件。
+
+insertDone
+		Vim 控制器發送，告知 Vim 完成了初始的檔案插入。這使得讀入資訊
+		被顯示。2.3 版本之前，開啟檔案之後不會顯示讀入訊息。
+		2.3 版本新出現。
+
+moveAnnoToFront serNum
+		沒有實現。
+
+netbeansBuffer isNetbeansBuffer
+		如果 "isNetbeansBuffer" 為 "T"，那麼該緩衝區為 NetBeans 所 "擁
+		有"。2.2 版本新出現。
+
+putBufferNumber pathname
+		把一個緩衝區號和 Vim 和以字元串參數 "pathname" 命名的 Vim 緩衝
+		區聯繫起來。它用於編輯器向 IDE 報告它要編輯另外一個檔案，而
+		IDE 需要告訴編輯器它為這個檔案分配的緩衝區號。同時，這個命令也
+		把緩衝區標為已初始化。
+		2.1 版本新出現。
+
+raise		把編輯器帶到前臺。
+		僅用於 GUI 版本的 Vim。
+		2.1 版本新出現。
+
+removeAnno serNum
+		刪除以前這個緩衝區裡放置的評註。"serNum" 是 addAnno 使用的相同
+		的數字。
+
+save		如果緩衝區已修改，就儲存之。介面的另一側應該寫入緩衝區，把緩衝
+		區標為已修改 ('setModified')，並復位緩衝區的 "changed" 標誌
+		位。
+		如果以下條件有一為真，則跳過寫入的步驟:
+		- 'write' 沒有置位
+		- 緩衝區只讀
+		- 緩衝區沒有檔名
+		- 'buftype' 不允許寫入
+		2.2 版本新出現。
+
+saveDone
+		Vim 控制器發送，告知 Vim 儲存已經完成。這使得儲存訊息被顯示。
+		2.3 版本之前，儲存後不顯示儲存訊息。
+		2.3 版本新出現。
+
+setAsUser	沒有實現。
+
+setBufferNumber pathname
+		把一個緩衝區號和以字元串參數 "pathname" 命名的 Vim 緩衝區聯繫
+		起來。它用於編輯器向 IDE 報告它要編輯另外一個檔案，而 IDE 需要
+		告訴編輯器它為這個檔案分配的緩衝區號。它還有把這個緩衝區設為當
+		前緩衝區的副作用。
+		參見 "putBufferedBumber"，它也許更有用。
+
+setContentType
+		沒有實現。
+
+setDot off	使得緩衝區成為當前緩衝區，並設定游標到相應的位置。如果緩衝區在
+		別的視窗裡開啟，使得該視窗成為當前視窗。
+		摺疊會相應開啟，使得游標行可見。
+		2.1 版本里 "lnum/col" 可以用來替代 "off"。
+
+setExitDelay seconds
+		設定退出延遲為 seconds 秒，second 為數值參數。
+		該延遲用於給 IDE 在真正退出之前處理某些事情的時間。預設的延遲
+		是 2 秒。
+		2.1 版本新出現。
+		2.3 版本已廢棄。
+
+setFullName pathname
+		為緩衝區的檔名設為字元串參數 "pathname"。
+		在 IDE 想編輯 IDE 控制的檔案時使用該命令。這使得該緩衝區成為當
+		前緩衝區，但不從該檔案讀。"insert" 命令可以用來隨後設定它的內
+		容。
+
+setLocAndSize	沒有實現。
+
+setMark		沒有實現。
+
+setModified modified
+		如果布爾參數 "modified" 為 "T"，把緩衝區標為已修改，如果為
+		"F"，則標為未修改。
+
+setModtime time
+		在 Vim 控制器自己儲存檔案後，更新緩衝區的修改時間。
+		2.3 版本新出現。
+
+setReadOnly
+		設定檔案為只讀
+		2.3 版本已經實現。
+
+setStyle	沒有實現。
+
+setTitle name
+		把緩衝區的標題改為字元串參數 "name"。標題用於 Vim 控制器，而不
+		是 Vim。
+
+setVisible visible
+		如果布爾參數 "visible" 為 "T"，轉到這個緩衝區。
+		"F" 參數不做任何事。
+
+showBalloon text
+		在滑鼠當前位置顯示一個氣泡 (彈出視窗)，顯示文字 "text"，一個字
+		符串表示式。氣泡在滑鼠移動若干畫素點後自動消失。
+		僅用於 GUI 版本的 Vim。
+		2.1 版本新出現。
+
+specialKeys
+		對映一組鍵 (最常見的是功能鍵)，使之可以被傳遞迴 Vim 控制器進行
+		處理。這使得 IDE 常規的熱鍵可以從 Vim 處呼叫。
+		2.3 版本已經實現。
+
+startAtomic	開始一個原子操作。螢幕不更新，直到遇到 "endAtomic" 為止。
+
+startCaretListen
+		沒有實現。
+
+
+startDocumentListen
+		標識緩衝區，使之向 IDE 報告 "insert" 和 "remove" 事件。預設就
+		是報告這些改變。
+
+stopCaretListen
+		沒有實現。
+
+stopDocumentListen
+		標識緩衝區，使之停止向 IDE 報告改變。
+		和 startDocumentListen 相反。
+		注意: 如果用過 "netbeansBuffer" 把本緩衝區標註為 NetBeans 緩衝
+		區，那麼 Vim 就刪除該緩衝區。這是為了和 Sun Stdio 10 相容。
+
+unguard off len
+		和 "guard" 相反，撤銷文字區域的保護。
+		如有必要，同時設定當前緩衝區。
+
+version		沒有實現。
+
+
+6.4 函數和應答						*nb-functions*
+
+getDot		沒有實現。
+
+getCursor	返回當前緩衝區和游標位置。
+		應答是:
+			seqno bufID lnum col off
+		seqno = 該函數的序列號
+		bufID = 當前緩衝區的號碼 (如果未知，返回 -1)
+		lnum  = 當前游標的行號 (第一行為 1)
+		col   = 當前游標的列號 (位元組數，從 0 開始)
+		off   = 緩衝區當前游標的位移 (以位元組數計算)
+		2.1 版本新出現。
+
+getLength	返回緩衝區的位元組計算的長度。
+		如果緩衝區有 5000 個位元組，那麼返回的可能是:
+			123 5000
+		TODO: 解釋部分行的使用情況。
+
+getMark		沒有實現。
+
+getAnno serNum
+		返回緩衝區中評註所在的行號。
+		參數:
+			serNum		該放置評註的序列號
+		應答是:
+			123 lnum	評註所在的行號
+			123 0		非法的評註序列號
+		2.4 版本新出現。
+
+getModified	如果指定一個緩衝區: 返回 0 如果緩衝區沒有改動，反之為 1。
+		如果沒有指定緩衝區 (緩衝區號為 0): 返回有改動的緩衝區的數目。
+		如果結果為 0，那麼 Vim 就可以安全退出了。
+		2.1 版本新出現。
+
+getText		返回緩衝區的內容，以字元串形式表示。
+		考慮一個只有兩行的緩衝區的例子，應答可能是:
+			123 "first line\nsecond line\n"
+		注意: 文件指出應該有位移和長度兩個參數。但是這沒有實現。
+
+insert off text
+		在位置 "off" 之前插入文字 "text"。"text" 是字元串參數，"off"
+		是個數值。
+		"text" 必須在每行結尾處包括 "\n" (新行)，或 'fileformat' 為
+		"dos" 時 "\r\n"。如果在空緩衝區上使用 "insert"，Vim 會自動相應
+		地設定 'fileformat'。
+		如果 "off" 指向行首，文字插在此行之上。這樣，如果 "off" 為零，
+		文字行被插到第一行之前。
+		如果 "off" 指向行的開始位置之後，包括行尾的 NUL 處，那麼文字的
+		第一行附加於此行之後。其餘的行出現於其後。
+		可能的應答:
+			123		沒有問題
+			123 !message	失敗
+		注意 回答裡的訊息不用引號括起。
+		如有必要，同時設定當前緩衝區。
+		不把游標移動到修改過的文字上。
+		復位撤銷相關資訊。
+
+remove off length
+		從位置 "off" 開始刪除 "length" 長度位元組的文字。兩個參數都是數
+		值。
+		可能的應答:
+			123		沒有問題
+			123 !message	失敗
+		注意 回答裡的訊息不用引號括起。
+		如有必要，同時設定當前緩衝區。
+
+saveAndExit	完成關閉 Vim 等價的操作:  ":confirm qall"。如果檔案內容沒有改
+		動，或者使用者沒有取消 Vim 退出的操作，不返回沒有任何結果。IDE
+		認為成功的連線關閉代表成功的結果。如果使用者取消該操作，尚存的修
+		改過的緩衝區被作為結果返回，Vim 也不會退出。
+		2.1 版本新出現。
+
+
+6.5 事件						*nb-events*
+
+balloonEval off len type
+		滑鼠在文字上短暫停留。如果 "len" 為零，沒有選擇區域，游標在
+		"off" 位置上。如果 "len" 非零，從 "off" 到 "off" + "len" 的區
+		域被選擇。
+		只有在該緩衝區設定了 "enableBalloonEval" 以後纔會發送。"type"
+		尚未有定義。
+		尚未實現。
+
+balloonText text
+		如果設定了 'ballooneval'，滑鼠在某段文字上出現。"text" 是字元
+		串，滑鼠下的文字。
+		僅用於 GUI 版本的 Vim。
+		2.1 版本新出現。
+
+buttonRelease button lnum col
+		報告按了那個滑鼠鍵，和釋放時游標的位置。只有對 Vim 控制器擁有
+		的緩衝區有效。如果滑鼠鍵在釋放時在狀態行或者分隔行時，該事件不
+		會被發送。如果 col 小於 1，滑鼠鍵釋放的位置在前導的標號欄。
+		2.2 版本新出現。
+
+disconnect
+		報告 Vim 控制器 Vim 在退出，不會嘗試讀寫更多的命令。
+		2.3 版本新出現。
+
+fileClosed	沒有實現。
+
+fileModified	沒有實現。
+
+fileOpened pathname open modified
+		使用者開啟某個檔案。
+		參數:
+		   pathname	字元串	檔名
+		   open		布爾    總是 "T"
+		   modified	布爾    總是 "F"
+
+geometry cols rows x y
+		報告編輯器視窗的大小和位置。
+		參數:
+		   cols		數值	文字列數
+		   rows		數值	文字行數
+		   x		數值	游標畫素點橫座標
+		   y		數值	游標畫素點縱座標
+		只適用於 Motif。
+
+insert off text
+		Vim 裡在 "off" 位置插入了文字 "text"。只有在允許的時候才發送。
+		見 "startDocumentListen"。
+
+invokeAction	沒有實現。
+
+keyCommand keyName
+		報告按了某個特殊鍵，鍵名是 "keyName"，是個字元串。
+		支援的鍵名:
+			F1		功能鍵 1
+			F2		功能鍵 2
+			...
+			F12		功能鍵 12
+
+			' '		空格 (沒有引號)
+			!		感歎號
+			...		任何其他 ASCII 可顯示字元
+			~		波浪號
+
+			X		不能識別的鍵
+
+		鍵名前面可能有 "C"、"S" 和/或 "M"，分別代表 Control、Shift 和
+		Meta (Alt) 修飾符。如果有的話，修飾符和鍵名以連字元分隔。例如:
+		"C-F2"。
+		ASCII 字元是 2.1 版本新出現的。
+
+keyAtPos keyName lnum/col
+		類似於 "keyCommand"，同時報告游標所在的行號和列號。
+		2.1 版本新出現。
+
+killed		使用者刪除或者清除了一個檔案，而緩衝區的評註也已經被刪除。此緩衝
+		區的 bufID 已經無效。只有對 IDE 已經給出 bufID 的檔案纔有效。
+
+newDotAndMark off off
+		報告游標在緩衝區的 "off" 位元組位置。只有在 "keyCommand" 事件之
+		前發送。
+
+quit		沒有實現。
+
+remove off len
+		從 "off" 位置開始長度為 "len" 的文字在 Vim 裡被刪除。只有在允
+		許的時候才發送。見 "startDocumentListen"。
+
+revert		沒有實現。
+
+save		緩衝區被儲存，現在已處於沒有修改的狀態。只有在允許的時候才發
+		送。見 "startDocumentListen"。
+
+startupDone	編輯器完成啟動工作，可以開始編輯檔案。
+		2.1 版本新出現。
+
+unmodified	緩衝區現在處於未修改狀態。只有在允許的時候才發送。見
+		"startDocumentListen"。
+
+version vers	報告介面實現的版本號。Vim 報告 "2.4" (包括引號)。
+
+
+6.6 特殊訊息						*nb-special*
+
+這些訊息不遵循以上說明的訊息格式。它們仍由換行符終止。
+
+ACCEPT		不用。
+
+AUTH password	編輯器 -> IDE: 編輯器發送給 IDE 的第一個訊息。它提供套接字
+		伺服器所需的密碼。該密碼由 |-nb| 參數提供。不需要引號！
+
+DISCONNECT	IDE -> 編輯器: 終止連線。編輯器將會退出。IDE 應該只有在沒有未
+		儲存的改變的時候才發出此訊息。
+
+DETACH		IDE -> 編輯器: 終止連線，不退出編輯器。用於當 IDE 終止但不想關
+		閉編輯器的場合。2.1 版本新的特性。
+
+REJECT		不用。
+
+
+6.7  協議錯誤資訊					*nb-protocol_errors*
+
+這些錯誤發生意味著某個訊息違反了協議。
+*E627* *E628* *E629* *E630* *E631* *E632* *E633* *E634* *E635* *E636*
+*E637* *E638* *E639* *E640* *E641* *E642* *E643* *E644* *E645* *E646*
+*E647* *E648* *E649* *E650* *E651* *E652* *E653* *E654*
+
+
+==============================================================================
+7. NetBeans 命令					*netbeans-commands*
+
+							*:nbstart* *E511* *E838*
+:nbs[tart] {connection}	使用 {connection} 作為套接字連線參數，啟動新的
+			NetBeans 會話。{connection} 的格式見
+			|netbeans-parameters|。在任何時候，使用者可以用以下命令
+			檢查 netbeans 套接字是否已連線:
+			':echo has("netbeans_enabled")'
+
+							*:nbclose*
+:nbc[lose]		關閉當前 NetBeans 會話。刪除所有放置的標號。
+
+							*:nbkey*
+:nb[key] {key}		把 {key} 傳遞給 Vim 控制器進行處理。用 specialKeys 命
+			令安裝了熱鍵後，此命令用來生成熱鍵的相應資訊發給 Vim
+			控制器。
+			此命令也可用來給 Vim 控制器傳送任何文字。例如，Pyclewn
+			用它來生成以 Vim 使用者命令形式出現的完整的 gdb 命令集。
+			生成的依次是 newDotAndMark、keyCommand 和 keyAtPos 事
+			件。
+
+
+==============================================================================
+8. 已知問題						*netbeans-problems*
+
+不可能有 NUL 位元組。編輯器到 IDE 的轉換使得它們成為 NL 字元。反之，IDE -> 編輯
+器卻不能插入它們。
+
+NetBeans 會話可以在終端運行的 Vim 中啟動，然後在運行了 |:gui| 命令後切換到 GUI
+環境中繼續使用。此時 NetBeans 評註定義的高亮可能在 ":gui" 命令執行的 .gvimrc
+中被清除，因為該檔案會載入 colorscheme，後者會執行命令 ":highlight clear"。
+2.5 版本新出現。
+
+==============================================================================
+9. 偵錯 NetBeans 協議					*netbeans-debugging*
+
+要偵錯 Vim 協議，必須在編譯 Vim 時加入偵錯支援和 NetBeans 偵錯支援。關於 Vim
+編譯和如果開啟偵錯支援的操作，請見 |netbeans-configure|。
+
+運行 Vim 時，設定以下環境變數:
+
+    export SPRO_GVIM_DEBUG=netbeans.log
+    export SPRO_GVIM_DLEVEL=0xffffffff
+
+Vim 就會把所有收到和發送的 NetBeans 協議資訊記錄到 netbeans.log 檔案中。
+
+一個會話後，netbeans.log 的內容大致如下:
+Tue May 20 17:19:27 2008
+EVT: 0:startupDone=0
+CMD 1: (1) create
+CMD 2: (1) setTitle "testfile1.txt"
+CMD 3: (1) setFullName "testfile1.txt"
+EVT(suppressed): 1:remove=3 0 -1
+EVT: 1:fileOpened=0 "d:\\work\\vimWrapper\\vimWrapper2\\pyvimwrapper\\tests\\testfile1.txt" T F
+CMD 4: (1) initDone
+FUN 5: (0) getCursor
+REP 5: 1 1 0 0
+CMD 6: (2) create
+CMD 7: (2) setTitle "testfile2.txt"
+CMD 8: (2) setFullName "testfile2.txt"
+EVT(suppressed): 2:remove=8 0 -1
+EVT: 2:fileOpened=0 "d:\\work\\vimWrapper\\vimWrapper2\\pyvimwrapper\\tests\\testfile2.txt" T F
+CMD 9: (2) initDone
+
+
+==============================================================================
+10. NetBeans 外部編輯器
+
+注 意: 以下資訊已經過時！只對還在使用舊版的 NetBeans 的人有用。
+
+
+10.1. 下載 NetBeans				*netbeans-download*
+
+NetBeans IDE 可以從 netbeans.org 下載。你可以下載發行版，原始碼，或者用 CVS 得
+到當前的原始碼樹。如果你選擇下載原始碼，遵照 netbeans.org 的指示來編譯
+NetBeans。
+
+視乎你下載的 NetBeans 版本，你可能需要更多的工作: 下載所需的外部編輯器模組。這
+是使 NetBeans 支援 gvim (或者 xemacs :-)) 的模組。如果你的 NetBeans 不帶之，參
+見 http://externaleditor.netbeans.org 瞭解如何下載該模組的詳情。
+
+關於 C、C++ 和 Fortran 的支援，你需要得到 cpp 模組。關於這個模組的資訊，參見
+http://cpp.netbeans.org。
+
+你已可以從 Sun Microsystems, Inc 下載 30 天免費測試的 Sun ONE Studio。詳情見
+http://www.sun.com。
+
+
+10.2. NetBeans 鍵盤對映				*netbeans-keybindings*
+
+Vim 理解執行 NetBeans 命令的鍵盤對映。它們通常是功能鍵的組合。要執行某個
+NetBeans 命令，使用者必須按 Pause 鍵，再按 NetBeans 的鍵盤對映。比如，要編譯
+Java 檔案，NetBeans 的鍵盤對映是 "F9"。所以，在 vim 裡，按 "Pause F9" 起到編譯
+java 檔案的功能。要切換當前行的斷點狀態，按 "Pause Shift F8"。
+
+Pause 鍵是功能鍵 21。如果你沒有可用的 Pause 鍵，而想用 F8 代替，用: >
+
+	:map <F8> <F21>
+
+外部編輯器模組動態地讀取 NetBeans 的鍵盤對映，所以 vim 應該總能得到最新的鍵盤
+對映，即使在 NetBeans 改變它們以後。
+
+
+10.3. 為 Vim 準備 NetBeans			*netbeans-preparation*
+
+要使得 NetBeans 支援 vim，NetBeans 外部編輯器模組必須已經調入並且能使用。如果
+你使用 Sun ONE Studio Enterprise Edition，那麼這一模組應該已經能用了。如果你用
+的是 NetBeans 發行版，你需要自己去找這個開源的模組。
+
+你可以檢查該模組是不是已經存在。開啟 Tools->Options 對話方塊，找到 "Modules" 列
+表 (IDE Configuration->System->Modules)。如果該列表包含 "External Editor"，檢
+查一下它是不是被許可使用了 ("Enabled" 屬性應該為 "True")。如果你的列表裡沒有這
+一項，見下一節 |obtaining-exted|。
+
+
+10.4. 取得外部編輯器模組			*obtaining-exted*
+
+有兩個方法可以取得外部編輯器模組。最簡單的方式是使用 NetBeans 更新中心，下載並
+安裝該模組。不幸的是，有的版本的更新中心找不到這個模組。如果這樣不行，你需要自
+己下載原始碼並編譯該模組。我會試圖使這個模組出現在 NetBeans 更新中心的，這樣自
+己編譯就不需要了。也可檢視 http://externaleditor.netbeans.org，看看有無取得的
+方法。
+
+要通過 CVS 下載外部編輯器的源碼並自己編譯，見
+http://externaleditor.netbeans.org 和 http://www.netbeans.org。不幸的是，這個
+方法並不是很簡單。
+
+
+10.5. 設定 NetBeans 以運行 Vim			*netbeans-setup*
+
+假設你已經根據 |netbeans-preparation| 調入和允許使用 NetBeans 外部編輯器模組，
+你只需要檢查一下 gvim 命令列已經為你的環境正確配置好了。
+
+開啟 Tools->Options 對話方塊，開啟 Editing 種類，選擇 External Editor。右邊的窗
+格應該包含 Properties 和 Expert 頁。在 Properties 頁裡，確保 "Editor Type" 設
+為 "Vim"。在 Expert 頁裡確保 "Vim Command" 是正確的。
+
+如果你要改變 "Vim Command"，要小心。必須提供有些命令選項，以便正確的建立連線。
+你可以改變命令名字本身，但也就那麼多了。如果你的 gvim 可以在 $PATH 裡找到，那
+麼 VIM Command 就可以用 "gvim" 開始。如果你不想從 $PATH 裡搜索 gvim，那麼就提
+供完整的路徑名。這樣，你就可以對 NetBeans 開啟的任何原始碼使用 gvim 編輯了。
+
+如果有些檔案在 gvim 裡開啟，有些 (有著不同字尾) 則使用預設的 NetBeans 編輯器，
+那你就需要檢查 Expert 頁的 MIME Type 屬性。NetBeans 面向 MIME 類型，而外部編輯
+器只會使用這個屬性所指定的 MIME 類型。
+
+
+ vim:tw=78:ts=8:ft=help:norl:

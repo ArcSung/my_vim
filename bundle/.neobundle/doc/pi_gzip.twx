@@ -1,0 +1,40 @@
+*pi_gzip.txt*	For Vim version 7.4.  最近更新: 2013年8月
+
+
+		     Vim 參考手冊    作者: Bram Moolenaar
+	   譯者: iCrazy <icrazy@ustc.edu>  http://vimcdoc.sf.net
+
+
+用 Vim 編輯壓縮的檔案				*gzip* *bzip2* *compress*
+
+1. 自動命令			|gzip-autocmd|
+
+這裡涉及到的功能是一個 |standard-plugin|。
+這個插件僅在 'compatible' 選項沒有被置位的情況下有效。
+您可以通過設定變數 "loaded_gzip" 來避免裝載這個插件:
+	:let loaded_gzip = 1
+
+{Vi 沒有以上的功能}
+
+==============================================================================
+1. 自動命令						*gzip-autocmd*
+
+這個插件建立自動命令來截獲對具有以下副檔名的檔案的讀寫:
+
+	副檔名		壓縮格式 ~
+	*.Z		compress (Lempel-Ziv)
+	*.gz		gzip
+	*.bz2		bzip2
+	*.lzma		lzma
+	*.xz		xz
+
+您僅僅知道這些就已經足夠了，此插件沒有選項。
+
+在解壓縮一個檔案之後，會自動重新檢測檔案格式。這樣可能會使一個類似 "foo.c.gz"
+的檔案具有 "c" 的檔案格式。
+
+如果您設定了 'patchmode'，在進行壓縮後該值會被自動加到檔案的副檔名後面。因而編
+輯 patchmode 檔案不會產生自動解壓縮的效果。如果您希望這樣，您需要改變檔名。
+
+==============================================================================
+ vim:tw=78:ts=8:ft=help:norl:

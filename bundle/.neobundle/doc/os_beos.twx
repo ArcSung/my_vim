@@ -1,0 +1,290 @@
+*os_beos.txt*	For Vim version 7.4.  最近修改: 2006年2月
+
+
+		  VIM 參考手冊    by Bram Moolenaar
+				譯者: Willis
+				http://vimcdoc.sf.net
+
+
+							*BeOS* *BeBox*
+這是一個適用於 BeOS 預覽版本 2 (也被稱為 PR2) 或以後版本的 Vim 5.1 移植版本。
+
+本文包含了 Vim 的 BeBox/BeOS 版本的特殊之處。除了本文提到的之外，和一般的 Unix
+|os_unix.txt| 版本的 Vim 行為大致相當。
+
+ 1. 通用			|beos-general|
+ 2. 編譯 Vim			|beos-compiling|
+ 3. 終端的超時問題		|beos-timeout|
+ 4. Unicode 還是 Latin1		|beos-unicode|
+ 5. BeOS GUI			|beos-gui|
+ 6. $VIM 目錄			|beos-vimdir|
+ 7. 拖和放			|beos-dragndrop|
+ 8. 單次啟動還是多次啟動	|beos-launch|
+ 9. 字型			|beos-fonts|
+10. meta 鍵修飾符		|beos-meta|
+11. 滑鼠鍵對映			|beos-mouse|
+12. 色彩名稱			|beos-colors|
+13. 帶 Perl 的編譯		|beos-perl|
+
+
+1. 通用							*beos-general*
+
+一般，語法高亮用不同的前景色高亮不同的項目。這特別適用於深色背景和淺色前景的終
+端視窗。有些中等灰色的背景 (比如 (r,g,b)=(168,168,168)) 也不錯。如果你用預設的
+淺色背景和深色字元，那麼倒轉前景和背景的設定概念也許看起來會舒服許多。要這麼
+做，把以下的內容加到你的 .vimrc 檔案裡 (其中的 <Esc> 需要被換成實際的 escape
+字元)。 >
+
+  :if &term == "beos-ansi"
+  :    set t_AB=<Esc>[3%dm
+  :    set t_AF=<Esc>[4%dm
+  :endif
+
+
+2. 編譯 Vim						*beos-compiling*
+
+從 Advanced Access Preview Release (AAPR) 預覽版本開始，Vim 可以用標準的
+configure 指令碼進行配置。要設定正確的編譯器及其標誌位，在外殼上應用下面的命令
+行 (你可以剪貼到命令列上):
+
+CC=$BE_C_COMPILER CFLAGS="$BE_DEFAULT_C_FLAGS -O7" \
+    ./configure --prefix=/boot/home/config
+
+$BE_C_COMPILER 通常是 "mwcc"，$BE_DEFAULT_C_FLAGS 通常是 "-I- -I."
+
+如果已經運行過 configure，你又想加上 GUI 支援，那你必須編輯 config.mk 檔案，使
+得含有 GUI_xxx 的行指向 $(BEOSGUI_xxx) 而不是 $(NONE_xxx)。
+或者，你也可以在 Makefile 裡作此改動；這樣的效果更持久一點。找找看 "NONE_"。
+
+編譯以後你需要把資源加進你的可執行程式。把以下幾行加到 link.sh 指令碼接近尾部的
+地方 (在 "exit $exit_value" 一行之前)，就可以自動執行這一任務。
+
+    rmattr BEOS:TYPE vim
+    copyres os_beos.rsrc vim
+    mimeset vim
+
+同時，建立一個不幹任何事的檔案 "strip":
+
+    #!/bin/sh
+    mimeset $1
+    exit 0
+
+用 "make install" 安裝 Vim 的時候你需要它，
+
+現在，輸入 "make" 來編譯 Vim，然後 "make install" 來安裝它。
+
+如果你想手動安裝 Vim，你需要把 Vim 複製到 $HOME/config/bin 裡，然後建立若干指
+向它的符號連結 ({g,r,rg}{vim,ex,view})。進一步，你需要把 Vim 的配置檔案
+vim-5.0s/{*.vim,doc,syntax} 複製到 $HOME/config/share/vim。為了完整起見，你還
+需要把 nroff 的手冊頁面複製到 $HOME/config/man/man1。不要忘了 ctags/ctags 和
+xxd/xxd！
+
+明顯地，你需要用實際沒有限制的連線器實際連線 Vim。參見
+http://www.metrowerks.com 瞭解如果購買 BeOS 的 CodeWarrior 編譯器。目前還沒有
+其他可用的連線器。
+
+即使你有合適的檔案，以上步驟並不能包含 Perl 或者 Python 介面。|beos-perl|
+
+
+3. 終端的超時問題					*beos-timeout*
+
+因為有的 POSIX/UNIX 功能還未實現[1]，終端裡的帶超時的讀操作還沒有直接的操作系
+統支援。這意味著除非你設定了 :set notimeout，你不能用 :mapping 等對映多於一個
+字元。|'timeout'|
+
+要避免這個問題，我提供了一個臨時解決辦法。用一個額外的執行緒預讀一個字元，從而
+提供必需的帶超時的輸入。不過，有一個附帶的後果就是 Vim 會識別到終端視窗的大小
+調整。
+
+終端裡不支援功能鍵，因為它們產生無法識別的字元序列。
+
+這些問題在 GUI 裡並不存在。
+
+[1]: 沒有檔案描述符上的 select() 例程；另外 終端輸入/輸出介面 VMIN 和 VTIME 的
+設定也不正確。這一問題從 DR7 開始就存在，至少在 PR2 裡還沒有解決。
+
+							*beos-unicode*
+4. Unicode 還是 Latin1					*beos-utf8*
+
+BeOS 用 Unicode 和 UTF-8 來編碼文字字元串 (16-位字元編碼成 8-位字元)。Vim 假定
+你用 ISO-Latin1 或者其他 8-位 字元程式碼。這對非 ASCII 的字元會產生意外的結果。
+試試命令 :digraphs 你就知道了。如果看起來一團亂，用 :set isprint=@ 可以少許改
+進對 ISO-Latin1 128-255 字元的顯示。如果你有合適的字型 (見後)，GUI 的情況會好
+些。
+
+你可以用 /boot/bin/xtou 命令把 ISO-Latin1 檔案 轉換成 UTF-8 檔案 (xtou -f iso1
+filename) 或者相反 (xtou -t iso1 filename)。
+
+
+5. BeOS GUI						*beos-gui*
+
+不再包含 BeOS GUI 的程式碼。有相當長的時間沒有人維護，很有可能已經不能用。如果你
+需要，從 Vim 6.x 版本中合並進相應的程式碼。
+
+
+6。$VIM 目錄						*beos-vimdir*
+
+$VIM 代表 Vim 支援檔案所在的位置。它的預設值在編譯時被確定，可以如下得到 >
+
+  :version
+
+一般，它的值是 /boot/home/config/share/vim。如果你不喜歡，你可以設定 VIM 環境
+變數來改變預設的設定，或者在你的 .vimrc 裡設定 'helpfile': >
+
+  :if version >= 500
+  :    set helpfile=~/vim/vim54/doc/help.txt
+  :    syntax on
+  :endif
+
+
+7. 拖和放						*beos-dragndrop*
+
+你可以把檔案和目錄拖放在 Vim 圖示上 (從而啟動一個新的 Vim 會話，除非你用檔案類
+型應用把 Vim 設為 "單次啟動") 或者放在 Vim 視窗上 (從而開始編輯檔案)。拖放一個
+目錄則改變 Vim 的當前工作目錄為此目錄。|:cd| |:pwd| 如果你在拖放的時候按住
+SHIFT，Vim 把當前目錄改變為放置的第一個項目所在的目錄。如果啟動新的 Vim，那就
+不需要按 shift 了: Vim 會做同樣的事情。
+
+放置檔案時設定當前的參數列表。|argument-list|
+
+
+8. 單次啟動還是多次啟動					*beos-launch*
+
+釋出時，Vim 的應用程式標誌位 (在檔案類型設定裡) 設為多次啟動。如果你願意，你可
+以把它們改為單次啟動。這樣，試圖啟動第二個 Vim 程式時會用第一個 Vim 開啟相應的
+檔案。這在 Tracker 和命令列下都適用。後者不支援非檔案 (選項) 的參數。
+
+NB: 只有 GUI 版本 有 BApplication (從而有應用程式標誌位)。這一節不適用於沒有
+GUI 的版本，如果你自己編譯一個的話。
+
+
+9. 字型							*beos-fonts*
+
+以下方法可以設定字型 >
+
+  :set guifont=Courier10_BT/Roman/10
+
+其中，第一部分是字型家族，第二部分是風格，第三部分是字型大小。在字型家族和風格
+裡，你可以用下劃線代替空格。
+
+等寬字型 (例如 Courier) 提供最好的效果。Vim 試圖對所有的字型應用
+B_FIXED_SPACING 模式，不過看起來這對比例字型沒有效果 (即使 BeBook 說應該有)。
+
+Vim 也試圖用 B_ISO8859_1 編碼，也被稱為 ISO Latin 1 編碼。這並不對所有字型適
+用。比如，它適用於 Courier，但不適用於 ProFontISOLatin1/Regular (很奇怪)。你可
+以通過以下命令驗證這點， >
+
+  :digraphs
+
+它列出一些字元和它們的 ISO Latin 1 編碼。如果，其中有 "方框" 字元，或者最後一
+個字元不是加點的 y，那麼這個編碼不適用於這個字型。
+
+如果你指定的字型不存在，會用系統的等寬字型代替。
+
+標準等寬的系統字型是:
+
+	      ProFontISOLatin1/Regular
+		  Courier10_BT/Roman
+		  Courier10_BT/Italic
+		  Courier10_BT/Bold
+		  Courier10_BT/Bold_Italic
+
+標準比例的系統字型是:
+
+		    Swis721_BT/Roman
+		    Swis721_BT/Italic
+		    Swis721_BT/Bold
+		    Swis721_BT/Bold_Italic
+		Dutch801_Rm_BT/Roman
+		Dutch801_Rm_BT/Italic
+		Dutch801_Rm_BT/Bold
+		Dutch801_Rm_BT/Bold_Italic
+		   Baskerville/Roman
+		   Baskerville/Italic
+		   Baskerville/Bold
+		   Baskerville/Bold_Italic
+		 SymbolProp_BT/Regular
+
+為了好玩，試試其中的一些字型吧。
+
+
+10. meta 鍵修飾符					*beos-meta*
+
+你可以用左右的 OPTION 鍵來模擬 META 鍵修飾符。這是因為 ALT (也就是 COMMAND) 鍵
+不會傳給應用程式。
+
+
+11. 滑鼠鍵對映						*beos-mouse*
+
+Vim 把滑鼠按鈕分別稱為 LeftMouse、MiddleMouse 和 RightMouse。如果你用預設的鼠
+標設定，這些名字反映的就是事實。Vim 用以下的對映:
+
+    Button 1 -> LeftMouse，
+    Button 2 -> RightMouse，
+    Button 3 -> MiddleMouse。
+
+如果你的滑鼠沒有三個按鈕，你可以用滑鼠鍵擊和若干修飾符來定義自己的滑鼠按鈕。例
+見 vim-5.x/macros/swapmous.vim。			|gui-mouse-mapping|
+
+
+12. 色彩名稱						*beos-colors*
+
+Vim 有一些內建的色彩名稱。附加的名字則從 $VIMRUNTIME/rgb.txt 裡取得。這個檔案
+基本上是 X 裡的色彩資料庫。為了提高效率，這個檔案裡的名字被緩衝存貯。
+
+
+13. 帶 Perl 的編譯					*beos-perl*
+
+帶 Perl 支援的編譯需要一點技巧。Metrowerks 編譯器在找尋包含檔案的位置上想法有
+些與眾不同。因為有些 Perl 的包含檔案和有些 Vim 的標頭檔案重名，錯誤的檔案被包含
+了。要修正這個問題，運行如下在 vim-5.0/src 目錄的 Perl 指令碼: >
+
+   preproc.pl > perl.h
+
+    #!/bin/env perl
+    # Simple #include expander, just good enough for the Perl header files.
+
+    use strict;
+    use IO::File;
+    use Config;
+
+    sub doinclude
+    {
+	my $filename = $_[0];
+	my $fh = new IO::File($filename, "r");
+	if (defined $fh) {
+	    print "/* Start of $filename */\n";
+
+	    while (<$fh>) {
+		if (/^#include "(.*)"/) {
+		    doinclude($1);
+		    print "/* Back in $filename */\n";
+		} else {
+		    print $_;
+		}
+	    }
+	    print "/* End of $filename */\n";
+
+	    undef $fh;
+	} else {
+	    print "/* Cannot open $filename */\n";
+	    print "#include \"$filename\"\n";
+	}
+    }
+
+    chdir     $Config{installarchlib}."/CORE";
+    doinclude "perl.h";
+
+它會只用其他的 Perl 標頭檔案來擴展 "perl.h" 標頭檔案。
+
+現在，你可以用 --enable-perlinterp 選項 configure 和 make Vim。不過，要提醒的
+是，這會給 Vim 增加 616 千位元組的大小！沒有 Perl 的支援，帶著預設的特性和 GUI
+的 Vim 大概是 575K 大小，而帶 Perl 支援則有 1191K 之大！
+
+-Olaf Seibert
+
+[注意: 以下地址已經不能用了:]
+<rhialto@polder.ubc.kun.nl>
+http://polder.ubc.kun.nl/~rhialto/be
+
+ vim:tw=78:ts=8:ft=help:norl:

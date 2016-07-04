@@ -1,0 +1,23 @@
+" ============================================================
+"  Author: chusiang / chusiang.lai (at) gmail.com
+"  Blog: http://note.drx.tw
+"  Filename: folding-html-php.vim.bak
+"  Modified: 2014-12-30 17:23
+"  Description: fold <table>, </table> at HTML, PHP.
+"  Reference: 
+" =========================================================== 
+
+syntax on
+
+let php_folding = 1 " Only fold { class } and ( function ).
+
+set foldmarker=<table,</table>
+set foldmethod=marker
+set foldlevel=0 " Default fold all.
+set foldnestmax=5 
+
+
+"autocmd FileType php let php_folding = 1 | set foldmarker=<table,</table> | set foldmethod=marker | set foldlevel=0 | set foldnestmax=5
+"autocmd BufRead,BufNewFile *.php let php_folding = 1 
+"autocmd BufRead,BufNewFile *.php let php_folding = 1 | set foldmarker=<table,</table> | set foldmethod=marker | set foldlevel=0 | set foldnestmax=5
+
